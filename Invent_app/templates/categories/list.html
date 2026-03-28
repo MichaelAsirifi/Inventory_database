@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Categories{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div>
+        <h1>Categories</h1>
+        <p style="color: #718096; margin-top: 5px;">Manage inventory categories</p>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">Generate</button>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#clearModal">🗑 Clear Data</button>
+        <a href="{{ url_for('categories.create') }}" class="btn btn-primary">+ Add Category</a>
+    </div>
+</div>
+
+<div class="table-section">
+    <div class="table-header">
+        <h2>All Categories ({{ categories|length }})</h2>
+        <input type="text" id="searchInput" placeholder="Search categories..." class="form-control" style="width: 250px;"
+               oninput="searchTable('searchInput', 'categoriesTable')">
+    </div>
+
+    <table id="categoriesTable">
+        <thead>
+            <tr>
+                <th>Category Name</th>
+                <th>Description</th>
+                <th>Items Count</th>
+                <th>Created Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category in categories %}
+            <tr>
+                <td><strong>{{ category.category_name }}</strong></td>
+                <td>{{ category.description or '-' }}</td>
+                <td style="text-align: center;">
+                    <span class="badge badge-info">{{ category.items.count() }}</span>
+                </td>
+                <td>{{ category.created_at.strftime('%Y-%m-%d') }}</td>
+                <td style="white-space: nowrap;">
+                    <a href="{{ url_for('categories.edit', id=category.category_id) }}" 
+                       class="btn btn-secondary btn-small">Edit</a>
+                    <button class="btn btn-danger btn-small"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteModal"
+                            data-category-id="{{ category.category_id }}"
+                            data-category-name="{{ category.category_name }}">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; color: #718096; padding: 40px;">
+                    No categories found. <a href="{{ url_for('categories.create') }}">Add your first category</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Generate Modal -->
+<div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="/seed/categories">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Generate Random Categories</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Automatically generate randomized categories and add them to your inventory.</p>
+                    <label class="form-label fw-bold">How many categories to generate?</label>
+                    <input type="number" name="count" class="form-control" value="10" min="1" max="500" required>
+                    <small class="text-muted">Max 500 per generation. Will be added on top of existing data.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Generate</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Clear Data Modal -->
+<div class="modal fade" id="clearModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="/seed/categories/clear">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">🗑 Clear Category Data</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will delete all <strong>empty categories</strong> (those with no items assigned).</p>
+                    <p class="text-muted mb-0" style="font-size: 14px;">Categories that have items cannot be deleted until those items are removed first.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Clear</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="deleteForm">
+            <input type="hidden" name="csrf_token" value="{{ session.get('_csrf_token', '') }}">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete <strong id="deleteCategoryName"></strong>?
+                    <p class="text-muted mt-2 mb-0" style="font-size: 14px;">
+                        This cannot be undone. Categories with existing items cannot be deleted.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const deleteModal = document.getElementById('deleteModal');
+        deleteModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const categoryId = button.getAttribute('data-category-id');
+            const categoryName = button.getAttribute('data-category-name');
+            document.getElementById('deleteCategoryName').textContent = categoryName;
+            document.getElementById('deleteForm').action = '/categories/' + categoryId + '/delete';
+        });
+    });
+</script>
+{% endblock %}

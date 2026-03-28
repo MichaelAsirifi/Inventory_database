@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div>
+        <h1>Transactions</h1>
+        <p style="color: #718096; margin-top: 5px;">All stock movements and adjustments</p>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">Generate</button>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#clearModal">🗑 Clear Data</button>
+        <a href="{{ url_for('transactions.stock_in') }}" class="btn btn-success">+ Stock In</a>
+        <a href="{{ url_for('transactions.stock_out') }}" class="btn btn-warning">- Stock Out</a>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="table-section" style="margin-bottom: 20px;">
+    <form method="GET" action="{{ url_for('transactions.list') }}" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <select name="type" class="form-control" style="width: 150px;">
+            <option value="">All Types</option>
+            <option value="STOCK_IN" {% if request.args.get('type') == 'STOCK_IN' %}selected{% endif %}>Stock In</option>
+            <option value="STOCK_OUT" {% if request.args.get('type') == 'STOCK_OUT' %}selected{% endif %}>Stock Out</option>
+            <option value="ADJUSTMENT" {% if request.args.get('type') == 'ADJUSTMENT' %}selected{% endif %}>Adjustment</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="{{ url_for('transactions.list') }}" class="btn btn-secondary">Clear</a>
+    </form>
+</div>
+
+<div class="table-section">
+    <div class="table-header">
+        <h2>All Transactions ({{ transactions.total if transactions else 0 }})</h2>
+        <input type="text" id="searchInput" placeholder="Search..." class="form-control" style="width: 250px;"
+               oninput="searchTable('searchInput', 'transactionsTable')">
+    </div>
+
+    <table id="transactionsTable">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Transaction ID</th>
+                <th>Item</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Reference</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if transactions %}
+                {% for transaction in transactions.items %}
+                <tr>
+                    <td>{{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><strong>#TRX-{{ '%04d'|format(transaction.transaction_id) }}</strong></td>
+                    <td>{{ transaction.item.item_name }}</td>
+                    <td>
+                        {% if transaction.transaction_type.type_name == 'STOCK_IN' %}
+                            <span class="badge badge-success">Stock In</span>
+                        {% elif transaction.transaction_type.type_name == 'STOCK_OUT' %}
+                            <span class="badge badge-warning">Stock Out</span>
+                        {% else %}
+                            <span class="badge badge-info">{{ transaction.transaction_type.type_name }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        {% if transaction.transaction_type.type_name == 'STOCK_IN' %}
+                            <span style="color: #48bb78; font-weight: bold;">+{{ transaction.quantity }}</span>
+                        {% else %}
+                            <span style="color: #ed8936; font-weight: bold;">-{{ transaction.quantity }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ transaction.reference_number or '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('transactions.detail', id=transaction.transaction_id) }}" 
+                           class="btn btn-primary btn-small">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="7" style="text-align: center; color: #718096; padding: 40px;">
+                    No transactions found. <a href="{{ url_for('transactions.stock_in') }}">Record your first transaction</a>
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if transactions and transactions.pages > 1 %}
+        {% include 'partials/pagination.html' %}
+    {% endif %}
+</div>
+
+<!-- Generate Modal -->
+<div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="/seed/transactions">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Generate Random Transactions</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Automatically generate randomized stock in, stock out, and adjustment transactions. Requires items to exist first.</p>
+                    <label class="form-label fw-bold">How many transactions to generate?</label>
+                    <input type="number" name="count" class="form-control" value="100" min="1" max="5000" required>
+                    <small class="text-muted">Max 5000 per generation. Stock levels will update automatically.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Generate</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Clear Data Modal -->
+<div class="modal fade" id="clearModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="/seed/transactions/clear">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">🗑 Clear All Transactions</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will delete <strong>all transactions</strong> from the database.</p>
+                    <p class="text-muted mb-0" style="font-size: 14px;">Items and their stock levels will not be affected. This cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Clear All</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

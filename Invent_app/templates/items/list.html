@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Items List{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div>
+        <h1>Items</h1>
+        <p style="color: #718096; margin-top: 5px;">Manage your inventory items</p>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateModal">Generate</button>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#clearModal">🗑 Clear Data</button>
+        <a href="{{ url_for('items.create') }}" class="btn btn-primary">+ Add New Item</a>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="table-section">
+    <div class="table-header">
+        <h2>All Items ({{ items.total }})</h2>
+        <div class="search-box">
+            <form method="GET" action="{{ url_for('items.list') }}" style="display: flex; gap: 10px;">
+                <input type="text" name="search" value="{{ request.args.get('search', '') }}" 
+                       placeholder="Search items..." class="form-control">
+                <select name="category" class="form-control" style="width: 150px;">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                        <option value="{{ category.category_id }}" 
+                                {% if request.args.get('category') == category.category_id|string %}selected{% endif %}>
+                            {{ category.category_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Item Code</th>
+                <th>Item Name</th>
+                <th>Category</th>
+                <th>Supplier</th>
+                <th>Unit Price</th>
+                <th>Current Stock</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items.items %}
+            <tr>
+                <td><strong>{{ item.item_code }}</strong></td>
+                <td>{{ item.item_name }}</td>
+                <td>{{ item.category.category_name }}</td>
+                <td>{{ item.supplier.supplier_name if item.supplier else 'N/A' }}</td>
+                <td>£{{ '%.2f'|format(item.unit_price) }}</td>
+                <td>
+                    <strong style="font-size: 16px;">{{ item.current_stock }}</strong>
+                </td>
+                <td>
+                    {% if item.current_stock == 0 %}
+                        <span class="badge badge-danger">Out of Stock</span>
+                    {% elif item.current_stock <= item.reorder_level %}
+                        <span class="badge badge-warning">Low Stock</span>
+                    {% else %}
+                        <span class="badge badge-success">In Stock</span>
+                    {% endif %}
+                </td>
+                <td style="white-space: nowrap;">
+                    <a href="{{ url_for('items.detail', id=item.item_id) }}" 
+                       class="btn btn-primary btn-small">View</a>
+                    <a href="{{ url_for('items.edit', id=item.item_id) }}" 
+                       class="btn btn-secondary btn-small">Edit</a>
+                    <button class="btn btn-danger btn-small"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteModal"
+                            data-item-id="{{ item.item_id }}"
+                            data-item-name="{{ item.item_name }}">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" style="text-align: center; color: #718096; padding: 40px;">
+                    No items found. <a href="{{ url_for('items.create') }}">Add your first item</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if items.pages > 1 %}
+    <div class="pagination">
+        {% if items.has_prev %}
+            <a href="{{ url_for('items.list', page=items.prev_num, search=request.args.get('search', ''), category=request.args.get('category', '')) }}">
+                ← Previous
+            </a>
+        {% endif %}
+
+        {% for page_num in items.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+            {% if page_num %}
+                {% if page_num == items.page %}
+                    <span class="active">{{ page_num }}</span>
+                {% else %}
+                    <a href="{{ url_for('items.list', page=page_num, search=request.args.get('search', ''), category=request.args.get('category', '')) }}">
+                        {{ page_num }}
+                    </a>
+                {% endif %}
+            {% else %}
+                <span>...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if items.has_next %}
+            <a href="{{ url_for('items.list', page=items.next_num, search=request.args.get('search', ''), category=request.args.get('category', '')) }}">
+                Next →
+            </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Generate Modal -->
+<div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="/seed/items">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Generate Random Items</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Automatically generate randomized inventory items. Requires at least one category to exist.</p>
+                    <label class="form-label fw-bold">How many items to generate?</label>
+                    <input type="number" name="count" class="form-control" value="50" min="1" max="2000" required>
+                    <small class="text-muted">Max 2000 per generation. Items will be assigned to existing categories and suppliers.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Generate</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Clear Data Modal -->
+<div class="modal fade" id="clearModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="/seed/items/clear">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">🗑 Clear All Items</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will delete <strong>all items</strong> and their associated transactions.</p>
+                    <p class="text-muted mb-0" style="font-size: 14px;">Categories and suppliers will not be affected. This cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Clear All</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="deleteForm">
+            <input type="hidden" name="csrf_token" value="{{ session.get('_csrf_token', '') }}">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete <strong id="deleteItemName"></strong>?
+                    <p class="text-muted mt-2 mb-0" style="font-size: 14px;">
+                        This will also delete all associated transactions and cannot be undone.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const deleteModal = document.getElementById('deleteModal');
+        deleteModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const itemId = button.getAttribute('data-item-id');
+            const itemName = button.getAttribute('data-item-name');
+            document.getElementById('deleteItemName').textContent = itemName;
+            document.getElementById('deleteForm').action = '/items/' + itemId + '/delete';
+        });
+    });
+</script>
+{% endblock %}

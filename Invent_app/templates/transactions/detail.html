@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction Details{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div>
+        <h1>Transaction Details</h1>
+        <p style="color: #718096; margin-top: 5px;">
+            #TRX-{{ '%04d'|format(transaction.transaction_id) }}
+        </p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('transactions.list') }}" class="btn btn-secondary">Back to List</a>
+    </div>
+</div>
+
+<div class="table-section">
+    <h2 style="margin-bottom: 20px;">Transaction Information</h2>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+        <div>
+            <p><strong>Transaction ID:</strong> #TRX-{{ '%04d'|format(transaction.transaction_id) }}</p>
+            <p><strong>Date:</strong> {{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            <p><strong>Type:</strong> 
+                {% if transaction.transaction_type.type_name == 'STOCK_IN' %}
+                    <span class="badge badge-success">Stock In</span>
+                {% elif transaction.transaction_type.type_name == 'STOCK_OUT' %}
+                    <span class="badge badge-warning">Stock Out</span>
+                {% else %}
+                    <span class="badge badge-info">{{ transaction.transaction_type.type_name }}</span>
+                {% endif %}
+            </p>
+            <p><strong>Quantity:</strong> 
+                {% if transaction.transaction_type.type_name == 'STOCK_IN' %}
+                    <span style="color: #48bb78; font-size: 20px; font-weight: bold;">+{{ transaction.quantity }}</span>
+                {% else %}
+                    <span style="color: #ed8936; font-size: 20px; font-weight: bold;">-{{ transaction.quantity }}</span>
+                {% endif %}
+            </p>
+        </div>
+        
+        <div>
+            <p><strong>Item:</strong> 
+                <a href="{{ url_for('items.detail', id=transaction.item.item_id) }}" style="color: #4299e1;">
+                    {{ transaction.item.item_name }}
+                </a>
+            </p>
+            <p><strong>Item Code:</strong> {{ transaction.item.item_code }}</p>
+            {% if transaction.unit_price %}
+                <p><strong>Unit Price:</strong> £{{ '%.2f'|format(transaction.unit_price) }}</p>
+                <p><strong>Total Value:</strong> £{{ '%.2f'|format(transaction.quantity * transaction.unit_price) }}</p>
+            {% endif %}
+            {% if transaction.supplier %}
+                <p><strong>Supplier:</strong> {{ transaction.supplier.supplier_name }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if transaction.reference_number or transaction.notes %}
+    <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid #e2e8f0;">
+        {% if transaction.reference_number %}
+            <p><strong>Reference Number:</strong> {{ transaction.reference_number }}</p>
+        {% endif %}
+        {% if transaction.notes %}
+            <p style="margin-top: 15px;"><strong>Notes:</strong></p>
+            <p style="background: #f7fafc; padding: 15px; border-radius: 6px; margin-top: 10px;">
+                {{ transaction.notes }}
+            </p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
